@@ -1,5 +1,5 @@
 #property copyright "EVE XAUUSD 5x5 Campaign Bot"
-#property version   "1.02"
+#property version   "1.03"
 #property strict
 #property description "XAUUSD 5 buy-stop / 5 sell-stop campaign EA with Railway control"
 
@@ -13,6 +13,7 @@ input double InpFirstOrderDistancePrice    = 0.10;
 input double InpOrderSpacingPrice          = 0.10;
 input double InpIndividualTakeProfitPrice  = 2.00;
 input double InpBreakevenOffsetPrice       = 0.0;
+input double InpCampaignProtectionReserveMoney = 0.50;
 input long   InpMagicNumber                = 550099;
 input int    InpSlippagePoints             = 20;
 
@@ -327,15 +328,50 @@ double FloatingProfit()
 }
 
 
+double EstimatedClosingCosts()
+{
+   if(PositionsTotal() <= 0)
+      return 0.0;
+
+   datetime since = g_campaign_start > 0 ? g_campaign_start : g_run_start;
+   if(since <= 0 || !HistorySelect(since, TimeCurrent() + 60))
+      return 0.0;
+
+   double total = 0.0;
+   int deals = HistoryDealsTotal();
+   for(int position_index = PositionsTotal() - 1; position_index >= 0; position_index--)
+   {
+      if(PositionGetTicket(position_index) <= 0 || !IsOwnedPositionSelected())
+         continue;
+      long identifier = PositionGetInteger(POSITION_IDENTIFIER);
+
+      for(int deal_index = 0; deal_index < deals; deal_index++)
+      {
+         ulong deal_ticket = HistoryDealGetTicket(deal_index);
+         if(deal_ticket == 0 || HistoryDealGetString(deal_ticket, DEAL_SYMBOL) != _Symbol ||
+            HistoryDealGetInteger(deal_ticket, DEAL_MAGIC) != InpMagicNumber ||
+            HistoryDealGetInteger(deal_ticket, DEAL_POSITION_ID) != identifier)
+            continue;
+         ENUM_DEAL_ENTRY entry = (ENUM_DEAL_ENTRY)HistoryDealGetInteger(deal_ticket, DEAL_ENTRY);
+         if(entry != DEAL_ENTRY_IN && entry != DEAL_ENTRY_INOUT)
+            continue;
+         total += MathAbs(HistoryDealGetDouble(deal_ticket, DEAL_COMMISSION));
+         total += MathAbs(HistoryDealGetDouble(deal_ticket, DEAL_FEE));
+      }
+   }
+   return total;
+}
+
+
 double RunProfit()
 {
-   return g_run_realized + FloatingProfit();
+   return g_run_realized + FloatingProfit() - EstimatedClosingCosts();
 }
 
 
 double CampaignProfit()
 {
-   return g_campaign_realized + FloatingProfit();
+   return g_campaign_realized + FloatingProfit() - EstimatedClosingCosts();
 }
 
 
@@ -441,6 +477,43 @@ void ManageLadderBreakeven()
 {
    ProtectEarlierPositions("B");
    ProtectEarlierPositions("S");
+}
+
+
+void AlignPositionTakeProfitsToFilledEntries()
+{
+   MqlTick tick;
+   if(!SymbolInfoTick(_Symbol, tick))
+      return;
+   double minimum_distance = SymbolInfoInteger(_Symbol, SYMBOL_TRADE_STOPS_LEVEL) * _Point;
+
+   for(int index = PositionsTotal() - 1; index >= 0; index--)
+   {
+      ulong ticket = PositionGetTicket(index);
+      if(ticket == 0 || !IsOwnedPositionSelected())
+         continue;
+
+      ENUM_POSITION_TYPE type = (ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE);
+      double open_price = PositionGetDouble(POSITION_PRICE_OPEN);
+      double current_sl = PositionGetDouble(POSITION_SL);
+      double current_tp = PositionGetDouble(POSITION_TP);
+      double desired_tp = type == POSITION_TYPE_BUY
+                          ? open_price + InpIndividualTakeProfitPrice
+                          : open_price - InpIndividualTakeProfitPrice;
+      desired_tp = NormalizedPrice(desired_tp);
+
+      if(current_tp > 0.0 && MathAbs(current_tp - desired_tp) <= _Point * 0.5)
+         continue;
+      bool price_allows = type == POSITION_TYPE_BUY
+                          ? desired_tp > tick.ask + minimum_distance
+                          : desired_tp < tick.bid - minimum_distance;
+      if(!price_allows)
+         continue;
+
+      if(!Trade.PositionModify(ticket, current_sl, desired_tp))
+         Print("Could not align TP to filled entry for position ", ticket, ": ",
+               Trade.ResultRetcodeDescription());
+   }
 }
 
 
@@ -783,9 +856,11 @@ int OnInit()
       return INIT_FAILED;
    }
    if(InpLotSize <= 0 || InpFirstOrderDistancePrice <= 0 || InpOrderSpacingPrice <= 0 ||
-      InpIndividualTakeProfitPrice <= 0 || InpCampaignTargetMoney <= 0)
+      InpIndividualTakeProfitPrice <= 0 || InpCampaignTargetMoney <= 0 ||
+      InpCampaignProtectionReserveMoney < 0 ||
+      InpCampaignProtectionReserveMoney >= InpCampaignTargetMoney)
    {
-      Alert("Lot size, distances and targets must be greater than zero.");
+      Alert("Check lot size, distances, protection reserve and campaign target.");
       return INIT_PARAMETERS_INCORRECT;
    }
 
@@ -869,6 +944,8 @@ void OnTradeTransaction(const MqlTradeTransaction &transaction,
       g_run_realized += amount;
    if(g_campaign_start > 0 && deal_time >= g_campaign_start)
       g_campaign_realized += amount;
+
+   AlignPositionTakeProfitsToFilledEntries();
 }
 
 
@@ -931,6 +1008,7 @@ void OnTick()
       return;
    }
 
+   AlignPositionTakeProfitsToFilledEntries();
    ManageLadderBreakeven();
 
    double run_profit = RunProfit();
@@ -952,14 +1030,16 @@ void OnTick()
       return;
    }
 
-   if(!g_campaign_profit_armed && campaign_profit > 0.0)
+   double protected_profit = campaign_profit - InpCampaignProtectionReserveMoney;
+   if(!g_campaign_profit_armed && protected_profit > 0.0)
    {
       g_campaign_profit_armed = true;
       SavePersistentState();
       SetEvent("CAMPAIGN_PROTECTED", "Campaign " + IntegerToString(g_campaign_number) +
-               " entered profit; $0 campaign floor armed");
+               " covered closing costs; $" +
+               DoubleToString(InpCampaignProtectionReserveMoney, 2) + " safety floor armed");
    }
-   else if(g_campaign_profit_armed && campaign_profit <= 0.0)
+   else if(g_campaign_profit_armed && protected_profit <= 0.0)
    {
       BeginCampaignClose("CAMPAIGN_BREAKEVEN");
       return;
