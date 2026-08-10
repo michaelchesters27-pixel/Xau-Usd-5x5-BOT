@@ -35,12 +35,14 @@ Gold uses direct price distances rather than forex pips:
 
 - first pending order distance: **$0.10** from current price;
 - spacing between pending orders: **$0.10**;
-- individual TP distance: **$0.50** from entry;
+- individual TP distance: **$2.00** from entry;
 - lot size: **0.01**;
 - breakeven price offset: **$0.00**.
 
-For a standard XAU/USD contract where 0.01 lot represents one ounce, a $0.50
-price move is approximately $0.50 gross P/L per position. The exact result can
+For a standard XAU/USD contract where 0.01 lot represents one ounce, a $2.00
+price move is approximately $2.00 gross P/L per position. Five positions have
+approximately $10.00 of combined TP potential, but the EA closes the complete
+campaign as soon as its combined P/L reaches the fixed $5 target. The exact result can
 vary with the broker's contract specification, commission, swap and slippage.
 The EA automatically respects any larger minimum stop distance imposed by the broker.
 
