@@ -1,5 +1,5 @@
 #property copyright "EVE XAUUSD 5x5 Campaign Bot"
-#property version   "1.00"
+#property version   "1.02"
 #property strict
 #property description "XAUUSD 5 buy-stop / 5 sell-stop campaign EA with Railway control"
 
@@ -11,7 +11,7 @@ input group "XAU/USD ladder"
 input double InpLotSize                    = 0.01;
 input double InpFirstOrderDistancePrice    = 0.10;
 input double InpOrderSpacingPrice          = 0.10;
-input double InpIndividualTakeProfitPrice  = 0.50;
+input double InpIndividualTakeProfitPrice  = 2.00;
 input double InpBreakevenOffsetPrice       = 0.0;
 input long   InpMagicNumber                = 550099;
 input int    InpSlippagePoints             = 20;
