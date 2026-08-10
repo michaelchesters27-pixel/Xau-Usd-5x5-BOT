@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>XAU/USD Bot Login</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body class="login-page">
+  <form class="login-card panel" method="post">
+    <p class="eyebrow">PRIVATE BOT CONTROL</p>
+    <h1>XAU/USD <span>5×5</span></h1>
+    <label><span>Dashboard password</span><input type="password" name="password" required autofocus></label>
+    {% if error %}<p class="login-error">{{ error }}</p>{% endif %}
+    <button type="submit">OPEN DASHBOARD</button>
+  </form>
+</body>
+</html>

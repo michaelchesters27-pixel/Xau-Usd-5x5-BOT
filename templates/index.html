@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#07111f">
+  <title>XAU/USD 5×5 Bot</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">RAILWAY LIVE CONTROL</p>
+        <h1>XAU/USD <span>5×5 Campaign Bot</span></h1>
+      </div>
+      <div class="connection" id="connectionBadge">
+        <i></i><span>Waiting for MT5</span>
+      </div>
+    </header>
+
+    <section class="hero-grid">
+      <article class="panel bot-state-panel">
+        <p class="label">BOT STATUS</p>
+        <div class="state-row">
+          <strong id="botStatus">WAITING</strong>
+          <span id="campaignNumber">Campaign —</span>
+        </div>
+        <p class="muted" id="statusMessage">Set both money limits, then attach the EA in MT5.</p>
+      </article>
+
+      <article class="panel limits-panel">
+        <div class="panel-title">
+          <div>
+            <p class="label">YOUR OVERALL LIMITS</p>
+            <h2>Type any amounts</h2>
+          </div>
+          <span class="save-state" id="saveState">Not set</span>
+        </div>
+        <div class="money-inputs">
+          <label>
+            <span>Profit target</span>
+            <div><b>$</b><input id="profitTarget" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="100"></div>
+          </label>
+          <label>
+            <span>Maximum loss</span>
+            <div><b>$</b><input id="maxLoss" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="50"></div>
+          </label>
+        </div>
+        <p class="input-note">Amounts save automatically. Each campaign target stays fixed at <strong>$5.</strong></p>
+      </article>
+    </section>
+
+    <section class="metrics">
+      <article class="metric panel">
+        <p class="label">OVERALL RESULT</p>
+        <strong id="runPl">$0.00</strong>
+        <div class="range"><span id="lossMarker">−$0</span><i><b id="runProgress"></b></i><span id="profitMarker">+$0</span></div>
+      </article>
+      <article class="metric panel">
+        <p class="label">CURRENT CAMPAIGN</p>
+        <strong id="campaignPl">$0.00</strong>
+        <div class="campaign-track"><b id="campaignProgress"></b></div>
+        <small>$5 campaign target</small>
+      </article>
+      <article class="metric panel">
+        <p class="label">ACCOUNT</p>
+        <div class="account-lines"><span>Balance <b id="balance">—</b></span><span>Equity <b id="equity">—</b></span></div>
+      </article>
+      <article class="metric panel">
+        <p class="label">LIVE ORDERS</p>
+        <div class="order-counts"><span><b id="openCount">0</b> open</span><span><b id="pendingCount">0</b> pending</span></div>
+      </article>
+    </section>
+
+    <section class="lower-grid">
+      <article class="panel ladder-panel">
+        <div class="panel-title">
+          <div>
+            <p class="label">CURRENT 5×5 LADDER</p>
+            <h2>Buy stops and sell stops</h2>
+          </div>
+          <span class="protection-badge">BREAKEVEN PROTECTED</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Order</th><th>State</th><th>Entry</th><th>SL</th><th>TP</th><th>P/L</th></tr></thead>
+            <tbody id="levelsBody"></tbody>
+          </table>
+        </div>
+      </article>
+
+      <aside class="side-stack">
+        <article class="panel safety-panel">
+          <p class="label">EMERGENCY CONTROL</p>
+          <button id="offButton" type="button">TURN BOT OFF</button>
+          <p>Closes every open trade, deletes every pending order and stops the bot.</p>
+          <small>To begin again, remove and reattach the EA in MT5.</small>
+        </article>
+        <article class="panel activity-panel">
+          <div class="panel-title"><div><p class="label">RECENT ACTIVITY</p><h2>Bot events</h2></div></div>
+          <ul id="eventList"><li><span>Waiting for activity</span></li></ul>
+        </article>
+      </aside>
+    </section>
+
+    <footer>
+      <span>XAU/USD only · M5 execution</span>
+      <span id="lastUpdate">No MT5 update yet</span>
+    </footer>
+  </main>
+
+  <div class="toast" id="toast" role="status"></div>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

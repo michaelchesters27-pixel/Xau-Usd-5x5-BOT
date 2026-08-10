@@ -1,0 +1,38 @@
+from pathlib import Path
+
+
+EA_SOURCE = (
+    Path(__file__).parents[1] / "mt5" / "XAUUSD_5x5_CampaignBot.mq5"
+).read_text(encoding="utf-8")
+
+
+def test_ea_is_locked_to_xauusd_and_hedging_accounts():
+    assert 'StringSubstr(_Symbol, 0, 6) != "XAUUSD"' in EA_SOURCE
+    assert "ACCOUNT_MARGIN_MODE_RETAIL_HEDGING" in EA_SOURCE
+
+
+def test_ea_places_five_orders_on_each_side_with_individual_tps():
+    assert "for(int level = 1; level <= 5; level++)" in EA_SOURCE
+    assert "Trade.BuyStop" in EA_SOURCE
+    assert "Trade.SellStop" in EA_SOURCE
+    assert "buy_tp" in EA_SOURCE
+    assert "sell_tp" in EA_SOURCE
+
+
+def test_ea_contains_all_money_and_breakeven_stops():
+    assert 'BeginStop("PROFIT_TARGET_REACHED"' in EA_SOURCE
+    assert 'BeginStop("MAX_LOSS_REACHED"' in EA_SOURCE
+    assert 'BeginCampaignClose("CAMPAIGN_COMPLETE")' in EA_SOURCE
+    assert 'BeginCampaignClose("CAMPAIGN_BREAKEVEN")' in EA_SOURCE
+    assert "ProtectEarlierPositions(\"B\")" in EA_SOURCE
+    assert "ProtectEarlierPositions(\"S\")" in EA_SOURCE
+
+
+def test_campaign_target_defaults_to_five_dollars():
+    assert "InpCampaignTargetMoney       = 5.0" in EA_SOURCE
+
+
+def test_live_ladder_defaults_are_close_to_price():
+    assert "InpFirstOrderDistancePrice    = 0.10" in EA_SOURCE
+    assert "InpOrderSpacingPrice          = 0.10" in EA_SOURCE
+    assert "InpIndividualTakeProfitPrice  = 0.50" in EA_SOURCE
