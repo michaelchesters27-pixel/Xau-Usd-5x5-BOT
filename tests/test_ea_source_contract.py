@@ -36,3 +36,17 @@ def test_live_ladder_defaults_are_close_to_price():
     assert "InpFirstOrderDistancePrice    = 0.10" in EA_SOURCE
     assert "InpOrderSpacingPrice          = 0.10" in EA_SOURCE
     assert "InpIndividualTakeProfitPrice  = 2.00" in EA_SOURCE
+
+
+def test_tp_is_realigned_to_the_actual_filled_entry():
+    assert "AlignPositionTakeProfitsToFilledEntries()" in EA_SOURCE
+    assert "open_price + InpIndividualTakeProfitPrice" in EA_SOURCE
+    assert "open_price - InpIndividualTakeProfitPrice" in EA_SOURCE
+    assert "Trade.PositionModify(ticket, current_sl, desired_tp)" in EA_SOURCE
+
+
+def test_campaign_protection_accounts_for_exit_costs_and_slippage():
+    assert "InpCampaignProtectionReserveMoney = 0.50" in EA_SOURCE
+    assert "double EstimatedClosingCosts()" in EA_SOURCE
+    assert "FloatingProfit() - EstimatedClosingCosts()" in EA_SOURCE
+    assert "campaign_profit - InpCampaignProtectionReserveMoney" in EA_SOURCE
