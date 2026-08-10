@@ -35,4 +35,4 @@ def test_campaign_target_defaults_to_five_dollars():
 def test_live_ladder_defaults_are_close_to_price():
     assert "InpFirstOrderDistancePrice    = 0.10" in EA_SOURCE
     assert "InpOrderSpacingPrice          = 0.10" in EA_SOURCE
-    assert "InpIndividualTakeProfitPrice  = 0.50" in EA_SOURCE
+    assert "InpIndividualTakeProfitPrice  = 2.00" in EA_SOURCE
