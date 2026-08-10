@@ -38,6 +38,7 @@ Gold uses direct price distances rather than forex pips:
 - individual TP distance: **$2.00** from entry;
 - lot size: **0.01**;
 - breakeven price offset: **$0.00**.
+- campaign protection reserve: **$0.50** after estimated closing costs.
 
 For a standard XAU/USD contract where 0.01 lot represents one ounce, a $2.00
 price move is approximately $2.00 gross P/L per position. Five positions have
@@ -45,6 +46,12 @@ approximately $10.00 of combined TP potential, but the EA closes the complete
 campaign as soon as its combined P/L reaches the fixed $5 target. The exact result can
 vary with the broker's contract specification, commission, swap and slippage.
 The EA automatically respects any larger minimum stop distance imposed by the broker.
+
+After a pending order fills, the EA resets its TP to exactly $2.00 from the
+actual filled entry, so pending-order slippage cannot shorten the intended TP.
+Campaign and overall P/L include an estimate of the commission needed to close
+the positions. Breakeven protection arms only after those estimated closing
+costs and the additional $0.50 safety reserve are covered.
 
 The EA requires an **MT5 hedging account** because individual ladder positions must remain separate.
 
