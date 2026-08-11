@@ -1,5 +1,5 @@
 #property copyright "EVE XAUUSD 5x5 Campaign Bot"
-#property version   "1.03"
+#property version   "1.04"
 #property strict
 #property description "XAUUSD 5 buy-stop / 5 sell-stop campaign EA with Railway control"
 
@@ -411,20 +411,88 @@ bool WasLevelTriggered(const string side, const int level)
 }
 
 
-int HighestTriggeredLevel(const string side)
+bool SelectedPositionMatchesSide(const string side)
 {
-   int highest = 0;
+   ENUM_POSITION_TYPE type = (ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE);
+   return (side == "B" && type == POSITION_TYPE_BUY) ||
+          (side == "S" && type == POSITION_TYPE_SELL);
+}
+
+
+bool SelectedOrderMatchesSide(const string side)
+{
+   ENUM_ORDER_TYPE type = (ENUM_ORDER_TYPE)OrderGetInteger(ORDER_TYPE);
+   return (side == "B" && type == ORDER_TYPE_BUY_STOP) ||
+          (side == "S" && type == ORDER_TYPE_SELL_STOP);
+}
+
+
+int CountSideExposure(const string side)
+{
+   int count = 0;
+   for(int index = PositionsTotal() - 1; index >= 0; index--)
+      if(PositionGetTicket(index) > 0 && IsOwnedPositionSelected() &&
+         SelectedPositionMatchesSide(side))
+         count++;
+   for(int index = OrdersTotal() - 1; index >= 0; index--)
+      if(OrderGetTicket(index) > 0 && IsOwnedOrderSelected() &&
+         SelectedOrderMatchesSide(side))
+         count++;
+   return count;
+}
+
+
+bool SideLevelInUse(const string side, const int level)
+{
+   for(int index = PositionsTotal() - 1; index >= 0; index--)
+   {
+      if(PositionGetTicket(index) <= 0 || !IsOwnedPositionSelected() ||
+         !SelectedPositionMatchesSide(side))
+         continue;
+      if(ParseLevel(PositionGetString(POSITION_COMMENT), side) == level)
+         return true;
+   }
+   for(int index = OrdersTotal() - 1; index >= 0; index--)
+   {
+      if(OrderGetTicket(index) <= 0 || !IsOwnedOrderSelected() ||
+         !SelectedOrderMatchesSide(side))
+         continue;
+      if(ParseLevel(OrderGetString(ORDER_COMMENT), side) == level)
+         return true;
+   }
+   return false;
+}
+
+
+int FirstFreeSideLevel(const string side)
+{
    for(int level = 1; level <= 5; level++)
-      if(WasLevelTriggered(side, level))
-         highest = level;
-   return highest;
+      if(!SideLevelInUse(side, level))
+         return level;
+   return 0;
 }
 
 
 void ProtectEarlierPositions(const string side)
 {
-   int highest = HighestTriggeredLevel(side);
-   if(highest < 2)
+   int side_positions = 0;
+   long newest_time = -1;
+   ulong newest_ticket = 0;
+   for(int index = PositionsTotal() - 1; index >= 0; index--)
+   {
+      ulong ticket = PositionGetTicket(index);
+      if(ticket == 0 || !IsOwnedPositionSelected() ||
+         !SelectedPositionMatchesSide(side))
+         continue;
+      side_positions++;
+      long opened = PositionGetInteger(POSITION_TIME_MSC);
+      if(opened > newest_time || (opened == newest_time && ticket > newest_ticket))
+      {
+         newest_time = opened;
+         newest_ticket = ticket;
+      }
+   }
+   if(side_positions < 2)
       return;
 
    MqlTick tick;
@@ -438,13 +506,10 @@ void ProtectEarlierPositions(const string side)
       ulong ticket = PositionGetTicket(index);
       if(ticket == 0 || !IsOwnedPositionSelected())
          continue;
+      if(!SelectedPositionMatchesSide(side) || ticket == newest_ticket)
+         continue;
       ENUM_POSITION_TYPE type = (ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE);
-      string position_side = type == POSITION_TYPE_BUY ? "B" : "S";
-      if(position_side != side)
-         continue;
       int level = ParseLevel(PositionGetString(POSITION_COMMENT), side);
-      if(level <= 0 || level >= highest)
-         continue;
 
       double open_price = PositionGetDouble(POSITION_PRICE_OPEN);
       double current_sl = PositionGetDouble(POSITION_SL);
@@ -572,28 +637,67 @@ bool PlaceCampaignOrders()
    double spacing = MathMax(InpOrderSpacingPrice, _Point);
    double take_profit_distance = MathMax(InpIndividualTakeProfitPrice, broker_minimum);
 
-   bool success = true;
-   for(int level = 1; level <= 5; level++)
+   double next_buy_price = tick.ask + first_distance;
+   double next_sell_price = tick.bid - first_distance;
+   for(int index = OrdersTotal() - 1; index >= 0; index--)
    {
-      double buy_price = NormalizedPrice(tick.ask + first_distance + (level - 1) * spacing);
+      if(OrderGetTicket(index) <= 0 || !IsOwnedOrderSelected())
+         continue;
+      double order_price = OrderGetDouble(ORDER_PRICE_OPEN);
+      if(SelectedOrderMatchesSide("B"))
+         next_buy_price = MathMax(next_buy_price, order_price + spacing);
+      else if(SelectedOrderMatchesSide("S"))
+         next_sell_price = MathMin(next_sell_price, order_price - spacing);
+   }
+
+   bool success = true;
+   int replacements = 0;
+   while(CountSideExposure("B") < 5)
+   {
+      int level = FirstFreeSideLevel("B");
+      if(level <= 0)
+      {
+         success = false;
+         break;
+      }
+      double buy_price = NormalizedPrice(next_buy_price);
       double buy_tp = NormalizedPrice(buy_price + take_profit_distance);
       if(!Trade.BuyStop(InpLotSize, buy_price, _Symbol, 0.0, buy_tp,
                         ORDER_TIME_GTC, 0, OrderComment("B", level)))
       {
          Print("Buy Stop ", level, " failed: ", Trade.ResultRetcodeDescription());
          success = false;
+         break;
       }
+      replacements++;
+      next_buy_price += spacing;
+   }
 
-      double sell_price = NormalizedPrice(tick.bid - first_distance - (level - 1) * spacing);
+   while(CountSideExposure("S") < 5)
+   {
+      int level = FirstFreeSideLevel("S");
+      if(level <= 0)
+      {
+         success = false;
+         break;
+      }
+      double sell_price = NormalizedPrice(next_sell_price);
       double sell_tp = NormalizedPrice(sell_price - take_profit_distance);
       if(!Trade.SellStop(InpLotSize, sell_price, _Symbol, 0.0, sell_tp,
                          ORDER_TIME_GTC, 0, OrderComment("S", level)))
       {
          Print("Sell Stop ", level, " failed: ", Trade.ResultRetcodeDescription());
          success = false;
+         break;
       }
+      replacements++;
+      next_sell_price -= spacing;
    }
-   return success && CountOwnedOrders() == 10;
+
+   if(replacements > 0 && g_campaign_start > 0)
+      SetEvent("LADDER_REPLENISHED", "Replaced " + IntegerToString(replacements) +
+               " campaign slots near the current price");
+   return success && CountSideExposure("B") == 5 && CountSideExposure("S") == 5;
 }
 
 
@@ -1043,5 +1147,17 @@ void OnTick()
    {
       BeginCampaignClose("CAMPAIGN_BREAKEVEN");
       return;
+   }
+
+   if(TimeCurrent() >= g_next_campaign_attempt)
+   {
+      if(!PlaceCampaignOrders())
+      {
+         g_next_campaign_attempt = TimeCurrent() + 5;
+         g_status = "PLACEMENT_RETRY";
+         SetEvent("PLACEMENT_ERROR", "Could not replenish the complete 5x5 ladder; retrying");
+      }
+      else if(g_status == "PLACEMENT_RETRY")
+         g_status = "RUNNING";
    }
 }
