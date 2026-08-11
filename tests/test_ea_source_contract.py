@@ -19,6 +19,20 @@ def test_ea_places_five_orders_on_each_side_with_individual_tps():
     assert "sell_tp" in EA_SOURCE
 
 
+def test_active_campaign_continuously_replenishes_both_sides():
+    assert 'while(CountSideExposure("B") < 5)' in EA_SOURCE
+    assert 'while(CountSideExposure("S") < 5)' in EA_SOURCE
+    assert 'CountSideExposure("B") == 5' in EA_SOURCE
+    assert 'CountSideExposure("S") == 5' in EA_SOURCE
+    assert 'SetEvent("LADDER_REPLENISHED"' in EA_SOURCE
+    assert "if(!PlaceCampaignOrders())" in EA_SOURCE
+
+
+def test_reused_slots_protect_positions_by_opening_order():
+    assert "POSITION_TIME_MSC" in EA_SOURCE
+    assert "ticket == newest_ticket" in EA_SOURCE
+
+
 def test_ea_contains_all_money_and_breakeven_stops():
     assert 'BeginStop("PROFIT_TARGET_REACHED"' in EA_SOURCE
     assert 'BeginStop("MAX_LOSS_REACHED"' in EA_SOURCE
