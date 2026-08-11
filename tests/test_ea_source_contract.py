@@ -33,6 +33,16 @@ def test_reused_slots_protect_positions_by_opening_order():
     assert "ticket == newest_ticket" in EA_SOURCE
 
 
+def test_stale_opposite_pending_orders_recenter_during_drawdown():
+    assert 'SideFloatingProfit("B") < 0.0' in EA_SOURCE
+    assert 'RecenterPendingHedgeSide("S", tick)' in EA_SOURCE
+    assert 'SideFloatingProfit("S") < 0.0' in EA_SOURCE
+    assert 'RecenterPendingHedgeSide("B", tick)' in EA_SOURCE
+    assert "maximum_fresh_gap = first_distance + 4.0 * spacing" in EA_SOURCE
+    assert "Trade.OrderDelete(ticket)" in EA_SOURCE
+    assert "ManageDynamicHedgeLadders();" in EA_SOURCE
+
+
 def test_ea_contains_all_money_and_breakeven_stops():
     assert 'BeginStop("PROFIT_TARGET_REACHED"' in EA_SOURCE
     assert 'BeginStop("MAX_LOSS_REACHED"' in EA_SOURCE
