@@ -1,5 +1,5 @@
 #property copyright "EVE XAUUSD 5x5 Campaign Bot"
-#property version   "1.04"
+#property version   "1.05"
 #property strict
 #property description "XAUUSD 5 buy-stop / 5 sell-stop campaign EA with Railway control"
 
@@ -439,6 +439,93 @@ int CountSideExposure(const string side)
          SelectedOrderMatchesSide(side))
          count++;
    return count;
+}
+
+
+double SideFloatingProfit(const string side)
+{
+   double total = 0.0;
+   for(int index = PositionsTotal() - 1; index >= 0; index--)
+   {
+      if(PositionGetTicket(index) <= 0 || !IsOwnedPositionSelected() ||
+         !SelectedPositionMatchesSide(side))
+         continue;
+      total += PositionGetDouble(POSITION_PROFIT);
+      total += PositionGetDouble(POSITION_SWAP);
+   }
+   return total;
+}
+
+
+int CountSidePendingOrders(const string side)
+{
+   int count = 0;
+   for(int index = OrdersTotal() - 1; index >= 0; index--)
+      if(OrderGetTicket(index) > 0 && IsOwnedOrderSelected() &&
+         SelectedOrderMatchesSide(side))
+         count++;
+   return count;
+}
+
+
+bool RecenterPendingHedgeSide(const string side, const MqlTick &tick)
+{
+   if(CountSidePendingOrders(side) <= 0)
+      return false;
+
+   double nearest_price = 0.0;
+   bool found = false;
+   for(int index = OrdersTotal() - 1; index >= 0; index--)
+   {
+      if(OrderGetTicket(index) <= 0 || !IsOwnedOrderSelected() ||
+         !SelectedOrderMatchesSide(side))
+         continue;
+      double price = OrderGetDouble(ORDER_PRICE_OPEN);
+      if(!found || (side == "B" && price < nearest_price) ||
+         (side == "S" && price > nearest_price))
+      {
+         nearest_price = price;
+         found = true;
+      }
+   }
+   if(!found)
+      return false;
+
+   double broker_minimum = SymbolInfoInteger(_Symbol, SYMBOL_TRADE_STOPS_LEVEL) * _Point + _Point;
+   double first_distance = MathMax(InpFirstOrderDistancePrice, broker_minimum);
+   double spacing = MathMax(InpOrderSpacingPrice, _Point);
+   double maximum_fresh_gap = first_distance + 4.0 * spacing + 2.0 * _Point;
+   double current_gap = side == "B" ? nearest_price - tick.ask : tick.bid - nearest_price;
+   if(current_gap <= maximum_fresh_gap)
+      return false;
+
+   bool success = true;
+   for(int index = OrdersTotal() - 1; index >= 0; index--)
+   {
+      ulong ticket = OrderGetTicket(index);
+      if(ticket == 0 || !IsOwnedOrderSelected() || !SelectedOrderMatchesSide(side))
+         continue;
+      if(!Trade.OrderDelete(ticket))
+      {
+         success = false;
+         Print("Could not delete stale ", side, " hedge order ", ticket, ": ",
+               Trade.ResultRetcodeDescription());
+      }
+   }
+   return success;
+}
+
+
+void ManageDynamicHedgeLadders()
+{
+   MqlTick tick;
+   if(!SymbolInfoTick(_Symbol, tick))
+      return;
+
+   if(SideFloatingProfit("B") < 0.0)
+      RecenterPendingHedgeSide("S", tick);
+   if(SideFloatingProfit("S") < 0.0)
+      RecenterPendingHedgeSide("B", tick);
 }
 
 
@@ -1148,6 +1235,8 @@ void OnTick()
       BeginCampaignClose("CAMPAIGN_BREAKEVEN");
       return;
    }
+
+   ManageDynamicHedgeLadders();
 
    if(TimeCurrent() >= g_next_campaign_attempt)
    {
