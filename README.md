@@ -13,16 +13,16 @@ without sharing trades or control state.
 
 ## Locked bot behaviour
 
-1. A campaign places **5 Buy Stops and 5 Sell Stops** around the current XAU/USD price.
-2. Every pending order has its own take-profit.
-3. The whole campaign has a fixed **$5 combined profit target**. Combined profit means realised campaign profit plus current floating profit/loss.
+1. A campaign maintains **5 active Buy slots and 5 active Sell slots** around the current XAU/USD price. Open positions plus pending stops count toward the five slots on each side.
+2. Every pending order has its own take-profit. When a trade closes at TP or breakeven, its missing slot is immediately replaced near the current price. This lets profitable sells fight buy drawdown and profitable buys fight sell drawdown.
+3. The whole campaign has a fixed **$5 combined profit target**. Combined profit means banked campaign profit plus current floating profit/loss, less estimated closing costs.
 4. At $5, the EA closes every open campaign trade, deletes every untriggered order and begins a fresh 5×5 campaign.
 5. The Railway dashboard accepts any positive **overall profit target** and **maximum loss**. These apply to the complete run across all campaigns.
 6. When the next order on one side triggers, every earlier open order on that same side moves to breakeven:
    - Buy 2 protects Buy 1;
    - Buy 3 protects Buy 1 and Buy 2;
    - the rule continues through Buy 5 and is identical for sells.
-7. When combined campaign P/L first becomes positive, a $0 campaign floor is armed. If it returns to $0, every open campaign trade closes and all remaining pending orders are deleted. A fresh campaign then begins.
+7. Campaign protection arms after estimated closing costs and the $0.50 execution reserve are covered. If protected profit falls back to that safety floor, every open campaign trade closes and all remaining pending orders are deleted. A fresh campaign then begins.
 8. When the overall profit target or maximum loss is reached, everything closes, all pending orders are deleted and the bot stops.
 9. The dashboard has one trading control: **TURN BOT OFF**. It performs the same full close, delete and stop operation.
 10. After OFF, remove and reattach the EA in MT5 to begin a new run. The same attached session cannot turn itself back on.
